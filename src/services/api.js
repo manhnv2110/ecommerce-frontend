@@ -7,7 +7,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000,
+  timeout: 60000, // Tăng lên 60 giây cho các request gửi email
 });
 
 // Biến để tracking trạng thái refresh
