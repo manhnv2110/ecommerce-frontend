@@ -15,6 +15,12 @@ class UserChatService {
   connect(token) {
     this.currentToken = token;
 
+    // If already connected, return existing client
+    if (this.connected && this.stompClient) {
+      console.log("WebSocket already connected, reusing existing connection");
+      return Promise.resolve(this.stompClient);
+    }
+
     return new Promise((resolve, reject) => {
       try {
         const wsUrl = import.meta.env.VITE_WS_URL;

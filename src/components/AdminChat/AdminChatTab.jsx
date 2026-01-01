@@ -84,6 +84,11 @@ export default function AdminChatTab() {
   // Initialize chat ONCE
   useEffect(() => {
     if (initStartedRef.current) {
+      // If already initialized, just ensure WebSocket is connected
+      if (!isConnected && !isConnecting) {
+        console.log("Re-connecting WebSocket...");
+        connectWebSocket();
+      }
       return;
     }
 
@@ -118,7 +123,12 @@ export default function AdminChatTab() {
     };
 
     initChat();
-  }, []); // Empty deps - run once
+
+    // Cleanup when component unmounts
+    return () => {
+      initStartedRef.current = false;
+    };
+  }, [isConnected, isConnecting]); // Add dependencies to re-check connection
 
   // Handle errors
   useEffect(() => {

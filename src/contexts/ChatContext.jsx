@@ -98,8 +98,15 @@ export const ChatProvider = ({ children }) => {
       return false;
     }
 
-    if (isConnecting || isConnected) {
-      console.log("Already connecting or connected");
+    // Check if already connected using service state, not React state
+    if (userChatService.isConnected()) {
+      console.log("Already connected to WebSocket");
+      setIsConnected(true);
+      return true;
+    }
+
+    if (isConnecting) {
+      console.log("Already connecting...");
       return true;
     }
 
@@ -111,6 +118,8 @@ export const ChatProvider = ({ children }) => {
       await userChatService.connect(token);
       setIsConnected(true);
       setIsConnecting(false);
+      // Reset subscription flag when reconnecting
+      hasSubscribedRef.current = false;
       console.log("WebSocket connected successfully");
       return true;
     } catch (err) {
@@ -120,7 +129,7 @@ export const ChatProvider = ({ children }) => {
       setError("Không thể kết nối WebSocket");
       return false;
     }
-  }, [getToken, getUserInfo, isConnecting, isConnected]);
+  }, [getToken, getUserInfo, isConnecting]);
 
   const sendMessage = useCallback(
     async (content, messageType = "TEXT") => {
@@ -200,7 +209,17 @@ export const ChatProvider = ({ children }) => {
 
   // Subscribe to room when connected
   useEffect(() => {
-    if (!room || !isConnected || hasSubscribedRef.current) {
+    // Check actual connection state from service
+    const actuallyConnected = userChatService.isConnected();
+    
+    if (!room || !actuallyConnected) {
+      console.log("Cannot subscribe: room or connection not ready", { room: !!room, connected: actuallyConnected });
+      return;
+    }
+
+    // Prevent duplicate subscriptions
+    if (hasSubscribedRef.current) {
+      console.log("Already subscribed to room:", room.id);
       return;
     }
 
@@ -213,7 +232,7 @@ export const ChatProvider = ({ children }) => {
     const messageSubscription = userChatService.subscribeToRoom(
       room.id,
       (message) => {
-        console.log("New message received:", message);
+        console.log("New message received via WebSocket:", message);
         const isSent = message.senderId === user.userId;
 
         setMessages((prev) => {
@@ -255,17 +274,19 @@ export const ChatProvider = ({ children }) => {
       }
     );
 
-    hasSubscribedRef.current = true;
+    // Only mark as subscribed if subscriptions were successful
+    if (messageSubscription && readSubscription) {
+      hasSubscribedRef.current = true;
+      console.log("Successfully subscribed to room:", room.id);
+    } else {
+      console.error("Failed to create subscriptions");
+    }
 
     // Cleanup
     return () => {
       console.log("Unsubscribing from room:", room.id);
-      if (messageSubscription) {
-        userChatService.unsubscribe(`room-${room.id}`);
-      }
-      if (readSubscription) {
-        userChatService.unsubscribe(`read-${room.id}`);
-      }
+      userChatService.unsubscribe(`room-${room.id}`);
+      userChatService.unsubscribe(`read-${room.id}`);
       hasSubscribedRef.current = false;
     };
   }, [room, isConnected, getUserInfo]);
